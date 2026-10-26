@@ -1,0 +1,996 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tafaal · Team Tasks</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Cairo:wght@400;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root{
+  --bg:#f5f6fa; --card:#fff; --ink:#1d2433; --muted:#6b7385; --line:#e4e7ef;
+  --brand:#5b3fd6; --brand-soft:#ede9ff;
+  --new:#2f6fed; --new-bg:#e6efff;
+  --prog:#b7791f; --prog-bg:#fff4dd;
+  --sub:#7c3aed; --sub-bg:#f1e9ff;
+  --ok:#15803d; --ok-bg:#e3f6ea;
+  --ret:#c2410c; --ret-bg:#ffece2;
+  --late:#dc2626; --late-bg:#fde8e8;
+  --radius:14px; --shadow:0 1px 2px rgba(16,24,40,.06),0 2px 8px rgba(16,24,40,.05);
+  --font:'Plus Jakarta Sans','Cairo',system-ui,-apple-system,'Segoe UI',sans-serif;
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:var(--font);background:var(--bg);color:var(--ink);font-size:15px}
+button,input,select,textarea{font:inherit}
+[hidden]{display:none!important}
+.btn{border:0;border-radius:10px;padding:9px 16px;font-weight:700;cursor:pointer;background:var(--brand);color:#fff;transition:.15s;white-space:nowrap}
+.btn:hover{filter:brightness(1.08)} .btn:disabled{opacity:.55;cursor:default}
+.btn.ghost{background:transparent;color:var(--ink);border:1px solid var(--line)}
+.btn.ok{background:var(--ok)} .btn.warn{background:var(--ret)} .btn.danger{background:var(--late)}
+.btn.sm{padding:5px 11px;font-size:13px}
+.btn:focus-visible,nav button:focus-visible,.stat:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+input,select,textarea{width:100%;border:1px solid var(--line);border-radius:10px;padding:9px 12px;background:var(--card);color:var(--ink)}
+textarea{min-height:80px;resize:vertical}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--brand-soft);border-color:var(--brand)}
+label{display:block;font-weight:600;font-size:13px;margin:12px 0 5px;color:var(--muted)}
+
+/* login */
+#login{min-height:100vh;display:grid;place-items:center;padding:16px}
+.login-card{background:var(--card);border-radius:20px;box-shadow:var(--shadow);padding:32px;width:100%;max-width:380px}
+.logo{font-weight:800;font-size:20px;color:var(--brand);letter-spacing:-.01em} .logo span{color:var(--muted);font-weight:600;font-size:14px}
+.err{color:var(--late);font-size:13px;min-height:20px;margin-top:8px}
+
+/* header */
+header{background:var(--card);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:20}
+.hwrap{max-width:1100px;margin:auto;display:flex;align-items:center;gap:12px;padding:10px 16px;flex-wrap:wrap}
+nav{display:flex;gap:4px;margin-inline-start:12px}
+nav button{background:none;border:0;padding:7px 14px;border-radius:9px;font-weight:700;color:var(--muted);cursor:pointer}
+nav button.on{background:var(--brand-soft);color:var(--brand)}
+.spacer{flex:1}
+.bell{position:relative;background:none;border:1px solid var(--line);border-radius:10px;width:40px;height:38px;cursor:pointer;font-size:18px}
+.bell b{position:absolute;top:-6px;right:-6px;background:var(--late);color:#fff;border-radius:99px;font-size:11px;min-width:19px;height:19px;display:grid;place-items:center;padding:0 5px}
+.me{font-weight:700;font-size:14px}
+.me small{display:block;color:var(--muted);font-weight:600;font-size:11px}
+
+main{max-width:1100px;margin:auto;padding:18px 16px 60px}
+
+/* stats */
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:16px}
+.stat{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);padding:12px 14px;cursor:pointer;border:2px solid transparent;text-align:start;color:var(--ink)}
+.stat.on{border-color:var(--brand)}
+.stat .n{font-size:24px;font-weight:800;font-variant-numeric:tabular-nums} .stat .l{color:var(--muted);font-size:13px;font-weight:600}
+
+/* filters */
+.filters{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);padding:12px;margin-bottom:14px;display:flex;flex-direction:column;gap:10px}
+.frow{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.frow > input,.frow > select{width:auto;flex:1 1 150px;min-width:0}
+.frow .search{flex:3 1 220px}
+.fgroup{display:flex;align-items:center;gap:6px;flex:1 1 170px;min-width:0}
+.fgroup span{font-size:12px;font-weight:700;color:var(--muted);white-space:nowrap}
+.fgroup select,.fgroup input{flex:1;min-width:0;padding:7px 10px;font-size:14px}
+.fgroup select.set{border-color:var(--brand);background:var(--brand-soft)}
+.fmeta{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--muted);flex-wrap:wrap}
+.fmeta b{color:var(--ink)}
+
+/* tasks */
+.tasks{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px}
+.task{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);padding:14px 16px;cursor:pointer;border-inline-start:4px solid var(--line);transition:.15s;position:relative;min-width:0}
+.task:hover{transform:translateY(-2px)}
+.task h3{margin:8px 0 6px;font-size:16px;line-height:1.45;padding-inline-end:30px}
+.task .meta{color:var(--muted);font-size:13px;display:flex;gap:12px;flex-wrap:wrap}
+.task.st-new{border-color:var(--new)} .task.st-in_progress{border-color:var(--prog)} .task.st-submitted{border-color:var(--sub)}
+.task.st-approved{border-color:var(--ok)} .task.st-returned{border-color:var(--ret)}
+.task .check{position:absolute;top:12px;right:14px;width:28px;height:28px;border-radius:50%;background:var(--ok);color:#fff;display:grid;place-items:center;font-weight:800}
+.badges{display:flex;gap:6px;flex-wrap:wrap}
+.badge{font-size:12px;font-weight:700;padding:3px 10px;border-radius:99px;display:inline-block}
+.s-new{background:var(--new-bg);color:var(--new)} .s-prog{background:var(--prog-bg);color:var(--prog)}
+.s-sub{background:var(--sub-bg);color:var(--sub)} .s-ok{background:var(--ok-bg);color:var(--ok)}
+.s-ret{background:var(--ret-bg);color:var(--ret)} .urgent{background:var(--late-bg);color:var(--late)}
+.late{background:var(--late);color:#fff}
+.prio{background:transparent;border:1.5px solid currentColor;padding:2px 9px}
+.p-urgent{color:var(--late)} .p-important{color:var(--prog)} .p-normal{color:var(--new)} .p-low{color:var(--muted)} .p-flex{color:var(--sub)}
+.hint{font-size:12px;color:var(--muted);margin-top:5px;line-height:1.5}
+.empty{text-align:center;color:var(--muted);padding:50px 10px;background:var(--card);border-radius:var(--radius);grid-column:1/-1}
+
+/* team */
+.panel-card{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);padding:18px;margin-bottom:16px}
+.panel-card h2{margin:0 0 6px;font-size:18px}
+.grid4{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:0 12px;align-items:end}
+.table{width:100%;border-collapse:collapse}
+.table th,.table td{padding:10px 8px;border-bottom:1px solid var(--line);text-align:start;font-size:14px}
+.table th{color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.04em}
+.table-wrap{overflow-x:auto}
+
+/* dialogs */
+dialog{border:0;border-radius:18px;padding:0;width:min(640px,calc(100% - 24px));max-height:calc(100vh - 40px);box-shadow:0 20px 60px rgba(0,0,0,.25);color:var(--ink);background:var(--card)}
+dialog::backdrop{background:rgba(20,22,35,.45)}
+.dlg-head{display:flex;align-items:center;gap:10px;padding:16px 20px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--card);z-index:2}
+.dlg-head h2{margin:0;font-size:18px;flex:1;line-height:1.45}
+.x{background:none;border:0;font-size:24px;cursor:pointer;color:var(--muted);line-height:1}
+.dlg-body{padding:16px 20px 22px}
+.sec{margin-top:18px} .sec h4{margin:0 0 8px;font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+.desc{white-space:pre-wrap;line-height:1.7;background:var(--bg);border-radius:10px;padding:12px}
+.kv{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px}
+.kv div{background:var(--bg);border-radius:10px;padding:8px 12px;font-size:13px}
+.kv b{display:block;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.04em}
+.note{border-radius:10px;padding:10px 12px;font-size:14px;margin-top:12px}
+.note.ret{background:var(--ret-bg);color:var(--ret)} .note.ok{background:var(--ok-bg);color:var(--ok)} .note.sub{background:var(--sub-bg);color:var(--sub)}
+.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+.att{display:flex;align-items:center;gap:8px;padding:7px 10px;border:1px solid var(--line);border-radius:10px;margin-bottom:6px;font-size:14px}
+.att a,.att button.lnk{flex:1;color:var(--brand);text-decoration:none;background:none;border:0;text-align:start;cursor:pointer;padding:0;word-break:break-all}
+.att small{color:var(--muted)}
+.row{display:flex;gap:8px} .row input{flex:1;min-width:0}
+.comment{padding:9px 12px;border-radius:12px;background:var(--bg);margin-bottom:8px}
+.comment.mine{background:var(--brand-soft)}
+.comment .who{font-size:12px;font-weight:700;color:var(--muted)}
+.comment p{margin:3px 0 0;white-space:pre-wrap;line-height:1.6}
+
+/* notifications */
+#notifPanel{position:fixed;top:62px;right:16px;width:min(360px,calc(100% - 32px));max-height:70vh;overflow:auto;background:var(--card);border-radius:14px;box-shadow:0 12px 40px rgba(0,0,0,.18);z-index:30}
+#notifPanel .nh{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;border-bottom:1px solid var(--line);font-weight:800}
+.notif{padding:10px 14px;border-bottom:1px solid var(--line);cursor:pointer;font-size:14px}
+.notif.unread{background:var(--brand-soft)}
+.notif small{display:block;color:var(--muted);font-size:11px}
+#toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 18px;border-radius:12px;font-weight:600;z-index:100;opacity:0;transition:.25s;pointer-events:none;max-width:calc(100% - 32px)}
+#toast.show{opacity:1} #toast.err{background:var(--late);color:#fff}
+/* job roles */
+.sub-email{font-size:12px;color:var(--muted);margin-top:2px;word-break:break-all}
+.tsel{width:auto;min-width:140px;padding:5px 8px;font-size:13px}
+.roles-list{display:flex;gap:8px;flex-wrap:wrap}
+.role-chip{display:inline-flex;align-items:center;gap:6px;background:var(--bg);border:1px solid var(--line);border-radius:99px;padding:5px 8px 5px 12px;font-weight:700;font-size:13px}
+.role-chip small{color:var(--muted);font-weight:600}
+.role-chip button{background:none;border:0;color:var(--muted);cursor:pointer;font-size:16px;line-height:1;padding:0 2px}
+.role-chip button:hover{color:var(--late)}
+.role-chip button:disabled{opacity:.35;cursor:not-allowed}
+/* presence */
+.presence-bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:14px;font-size:13px}
+.pb-title{font-size:11px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-inline-end:4px}
+.pchip{display:inline-flex;align-items:center;gap:6px;background:var(--card);border:1px solid var(--line);border-radius:99px;padding:4px 11px 4px 9px;font-weight:700;color:var(--ink);cursor:pointer;font-size:13px}
+.pchip small{color:var(--prog);font-weight:700}
+.pchip:hover{border-color:var(--brand)}
+.pb-none,.pb-off{color:var(--muted)}
+.pb-off{margin-inline-start:auto}
+.pd{width:9px;height:9px;border-radius:50%;display:inline-block;flex:none}
+.pd-online{background:var(--ok);box-shadow:0 0 0 3px var(--ok-bg)}
+.pd-away{background:var(--prog);box-shadow:0 0 0 3px var(--prog-bg)}
+.pd-offline{background:transparent;border:2px solid var(--muted);width:9px;height:9px}
+.pres{display:inline-flex;align-items:center;gap:7px;white-space:nowrap}
+.pres-online{color:var(--ok);font-weight:700} .pres-away{color:var(--prog);font-weight:700} .pres-offline{color:var(--muted)}
+@media (max-width:600px){ nav{margin:0;order:3;width:100%} .me small{display:none} .dlg-body{padding:14px} }
+@media (prefers-reduced-motion:reduce){ *{transition:none!important} }
+</style>
+</head>
+<body>
+
+<!-- ============ LOGIN ============ -->
+<section id="login" hidden>
+  <form class="login-card" id="loginForm">
+    <div class="logo">Tafaal <span>· Team Tasks</span></div>
+    <label for="lEmail">Email</label><input type="email" id="lEmail" required autocomplete="username">
+    <label for="lPass">Password</label><input type="password" id="lPass" required autocomplete="current-password">
+    <div class="err" id="loginErr"></div>
+    <button class="btn" style="width:100%;margin-top:6px" id="lBtn">Sign in</button>
+  </form>
+</section>
+
+<!-- ============ APP ============ -->
+<section id="app" hidden>
+  <header><div class="hwrap">
+    <div class="logo">Tafaal <span>· Team Tasks</span></div>
+    <nav id="nav" hidden>
+      <button data-view="tasks" class="on">Tasks</button>
+      <button data-view="team">Team</button>
+    </nav>
+    <div class="spacer"></div>
+    <button class="bell" id="bellBtn" title="Notifications" aria-label="Notifications">🔔<b id="bellCount" hidden>0</b></button>
+    <div class="me" id="meName"></div>
+    <button class="btn ghost sm" id="pwBtn">Password</button>
+    <button class="btn ghost sm" id="logoutBtn">Sign out</button>
+  </div></header>
+
+  <main>
+    <div id="view-tasks">
+      <div class="presence-bar" id="presenceBar" hidden></div>
+      <div class="stats" id="stats"></div>
+
+      <div class="filters">
+        <div class="frow">
+          <input id="fSearch" class="search" placeholder="Search tasks…">
+          <button class="btn" id="newTaskBtn" hidden>+ New task</button>
+        </div>
+        <div class="frow">
+          <label class="fgroup" id="fAssigneeWrap" hidden><span>Assignee</span><select id="fAssignee"></select></label>
+          <label class="fgroup" id="fJobWrap" hidden><span>Role</span><select id="fJob"></select></label>
+          <label class="fgroup"><span>Priority</span><select id="fPriority"></select></label>
+          <label class="fgroup"><span>Deadline</span><select id="fDue">
+            <option value="">Any</option>
+            <option value="today">Due today</option>
+            <option value="tomorrow">Due tomorrow</option>
+            <option value="week">This week (until Thu)</option>
+            <option value="overdue">Overdue</option>
+            <option value="none">No deadline</option>
+            <option value="range">Custom range…</option>
+          </select></label>
+          <label class="fgroup"><span>Created by</span><select id="fCreator"></select></label>
+          <label class="fgroup"><span>Sort</span><select id="fSort">
+            <option value="smart">Smart (status first)</option>
+            <option value="due">Nearest deadline</option>
+            <option value="newest">Newest first</option>
+            <option value="priority">Highest priority</option>
+          </select></label>
+        </div>
+        <div class="frow" id="fRangeRow" hidden>
+          <label class="fgroup"><span>From</span><input type="date" id="fFrom"></label>
+          <label class="fgroup"><span>To</span><input type="date" id="fTo"></label>
+        </div>
+        <div class="fmeta"><span id="fCount"></span><button class="btn ghost sm" id="fClear" hidden>Clear filters</button></div>
+      </div>
+
+      <div class="tasks" id="taskList"></div>
+    </div>
+
+    <div id="view-team" hidden>
+      <form class="panel-card" id="addUserForm">
+        <h2>Add a team member</h2>
+        <div class="grid4">
+          <div><label for="uName">Name</label><input id="uName" required></div>
+          <div><label for="uEmail">Email</label><input id="uEmail" type="email" required></div>
+          <div><label for="uPass">Initial password</label><input id="uPass" type="text" minlength="6" required placeholder="At least 6 characters"></div>
+          <div><label for="uJob">Role</label><select id="uJob"></select></div>
+          <div><label for="uRole">Permission</label><select id="uRole"><option value="employee">Employee</option><option value="admin">Admin</option></select></div>
+        </div>
+        <button class="btn" style="margin-top:14px" id="uBtn">Add member</button>
+      </form>
+      <div class="panel-card">
+        <h2>Team members</h2>
+        <div class="table-wrap"><table class="table" id="teamTable"></table></div>
+      </div>
+      <div class="panel-card">
+        <h2>Job roles</h2>
+        <p class="hint" style="margin:0 0 12px">The roles you can give team members. A role can only be removed when nobody has it.</p>
+        <div class="roles-list" id="rolesList"></div>
+        <form class="row" id="addRoleForm" style="margin-top:12px;max-width:440px">
+          <input id="newRole" placeholder="New role, e.g. Graphic Design" required>
+          <button class="btn sm">Add role</button>
+        </form>
+      </div>
+    </div>
+  </main>
+</section>
+
+<div id="notifPanel" hidden></div>
+<dialog id="taskDlg"></dialog>
+<dialog id="formDlg"></dialog>
+<div id="toast"></div>
+
+<script>
+/* ================= CONFIG — put your Supabase project details here ================= */
+const SUPABASE_URL      = 'https://rhpryeipxlxqbitpmgsm.supabase.co';
+   const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJocHJ5ZWlweGx4cWJpdHBtZ3NtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI5NjgwNjAsImV4cCI6MjEwODU0NDA2MH0.rrDzorIGq0Cu4nwQbPZZrWI8BpGkKeIZW51I9oOmoSg';
+/* =================================================================================== */
+
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const BUCKET = 'task-files';
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+const STATUS = {
+  new:         {t:'New',                  c:'s-new'},
+  in_progress: {t:'In progress',          c:'s-prog'},
+  submitted:   {t:'Awaiting review',      c:'s-sub'},
+  returned:    {t:'Returned for changes', c:'s-ret'},
+  approved:    {t:'Approved ✓',           c:'s-ok'},
+};
+const PRIORITY = {
+  urgent:    {t:'Urgent',    d:'Due the same day',                         days:0,    c:'p-urgent',    rank:0},
+  important: {t:'Important', d:'Due within 1 working day',                 days:1,    c:'p-important', rank:1},
+  normal:    {t:'Normal',    d:'Due within 3 working days',                days:3,    c:'p-normal',    rank:2},
+  low:       {t:'Low',       d:'Due within 5 working days',                days:5,    c:'p-low',       rank:3},
+  flexible:  {t:'Flexible',  d:'Not urgent right now — pick the due date yourself', days:null, c:'p-flex', rank:4},
+};
+const WEEKEND = [5]; // Friday is off and doesn't count as a working day
+const ORDER_ADMIN = ['submitted','returned','in_progress','new','approved'];
+const ORDER_EMP   = ['returned','new','in_progress','submitted','approved'];
+
+let me = null, profiles = [], tasks = [], notifs = [], channel = null, jobRoles = [];
+let currentTaskId = null;
+const EMPTY_FILTERS = {assignee:'', job:'', status:'', q:'', priority:'', due:'', from:'', to:'', creator:'', sort:'smart'};
+const filters = {...EMPTY_FILTERS};
+
+const isAdmin = () => me?.role === 'admin';
+const nameOf  = id => { const p = profiles.find(x => x.id === id); return p ? (p.full_name || p.email) : '—'; };
+const jobName = rid => jobRoles.find(r => r.id === rid)?.name || '';
+const jobIdOf = uid => profiles.find(p => p.id === uid)?.job_role_id || '';
+const personLabel = uid => { const n = nameOf(uid), j = jobName(jobIdOf(uid)); return j ? `${n} — ${j}` : n; };
+function renderMe(){
+  const sub = [isAdmin() ? 'Admin' : '', jobName(me.job_role_id)].filter(Boolean).join(' · ') || 'Employee';
+  $('#meName').innerHTML = `${esc(me.full_name || me.email)}<small>${esc(sub)}</small>`;
+}
+const prioOf  = p => PRIORITY[p] || PRIORITY.normal;
+const prioBadge = p => `<span class="badge prio ${prioOf(p).c}">${prioOf(p).t}</span>`;
+const localISO = d => { const x = new Date(d); x.setMinutes(x.getMinutes() - x.getTimezoneOffset()); return x.toISOString().slice(0,10); };
+const todayStr = () => localISO(new Date());
+const shiftDay = n => { const d = new Date(); d.setDate(d.getDate() + n); return localISO(d); };
+function endOfWorkWeek(){ const d = new Date(); while (d.getDay() !== 4) d.setDate(d.getDate() + 1); return localISO(d); } // Thursday
+function addWorkingDays(n){
+  const d = new Date();
+  while (WEEKEND.includes(d.getDay())) d.setDate(d.getDate() + 1);
+  let left = n;
+  while (left > 0) { d.setDate(d.getDate() + 1); if (!WEEKEND.includes(d.getDay())) left--; }
+  return localISO(d);
+}
+const isOverdue = t => t.due_date && t.due_date < todayStr() && !['approved','submitted'].includes(t.status);
+const fmtDate = d => d ? new Date(d + (d.length === 10 ? 'T00:00' : '')).toLocaleDateString('en-GB', {weekday:'short', day:'numeric', month:'short'}) : '';
+const fmtDT   = d => d ? new Date(d).toLocaleString('en-GB', {day:'numeric', month:'short', hour:'numeric', minute:'2-digit'}) : '';
+
+let toastTimer;
+function toast(msg, err){
+  const el = $('#toast'); el.textContent = msg; el.className = 'show' + (err ? ' err' : '');
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => el.className = '', 3200);
+}
+function fail(error){ console.error(error); toast(error?.message || 'Something went wrong', true); }
+
+/* ================= AUTH ================= */
+function showLogin(msg){
+  $('#app').hidden = true; $('#login').hidden = false;
+  $('#loginErr').textContent = msg || '';
+}
+$('#loginForm').onsubmit = async e => {
+  e.preventDefault();
+  $('#lBtn').disabled = true; $('#loginErr').textContent = '';
+  const {data, error} = await sb.auth.signInWithPassword({email: $('#lEmail').value.trim(), password: $('#lPass').value});
+  $('#lBtn').disabled = false;
+  if (error) { $('#loginErr').textContent = 'Wrong email or password'; return; }
+  await enter(data.user);
+};
+$('#logoutBtn').onclick = async () => {
+  await reportOffline(); clearInterval(presTick);
+  if (channel) sb.removeChannel(channel);
+  await sb.auth.signOut(); me = null; showLogin();
+};
+
+async function enter(user){
+  const {data: p} = await sb.from('profiles').select('*').eq('id', user.id).maybeSingle();
+  if (!p || !p.active) { await sb.auth.signOut(); showLogin('Your account is not active yet — contact an admin'); return; }
+  me = p;
+  $('#login').hidden = true; $('#app').hidden = false;
+  renderMe();
+  $('#fJobWrap').hidden = !isAdmin();
+  $('#nav').hidden = !isAdmin();
+  $('#fAssigneeWrap').hidden = !isAdmin();
+  $('#newTaskBtn').hidden = !isAdmin();
+  switchView('tasks');
+  const {data: {session}} = await sb.auth.getSession();
+  accessToken = session?.access_token || null;
+  await Promise.all([loadProfiles(), loadTasks(), loadNotifs(), isAdmin() ? loadPresence() : null]);
+  subscribe();
+  startPresence();
+  clearInterval(presTick);
+  if (isAdmin()) { renderPresence(); presTick = setInterval(renderPresence, 30 * 1000); }
+  else $('#presenceBar').hidden = true;
+}
+
+/* ================= DATA ================= */
+async function loadProfiles(){
+  const [{data, error}, {data: roles, error: e2}] = await Promise.all([
+    sb.from('profiles').select('*').order('created_at'),
+    sb.from('job_roles').select('*').order('name'),
+  ]);
+  if (error || e2) return fail(error || e2);
+  profiles = data; jobRoles = roles || [];
+  me = profiles.find(p => p.id === me.id) || me;
+  renderMe();
+  renderFilterOptions();
+  if (isAdmin()) { renderTeam(); renderRoles(); }
+}
+async function loadTasks(){
+  const {data, error} = await sb.from('tasks').select('*').order('created_at', {ascending:false});
+  if (error) return fail(error);
+  tasks = data; renderTasks(); if (isAdmin()) renderTeam();
+}
+async function loadNotifs(){
+  const {data, error} = await sb.from('notifications').select('*').order('created_at', {ascending:false}).limit(40);
+  if (error) return fail(error);
+  notifs = data; renderBell();
+}
+
+let reloadTimer;
+function subscribe(){
+  if (channel) sb.removeChannel(channel);
+  channel = sb.channel('rt-' + me.id)
+    .on('postgres_changes', {event:'INSERT', schema:'public', table:'notifications', filter:'user_id=eq.' + me.id}, p => {
+      notifs.unshift(p.new); renderBell(); toast('🔔 ' + p.new.message);
+    })
+    .on('postgres_changes', {event:'*', schema:'public', table:'tasks'}, () => {
+      clearTimeout(reloadTimer); reloadTimer = setTimeout(loadTasks, 300);
+    })
+    .on('postgres_changes', {event:'*', schema:'public', table:'presence'}, p => {
+      if (isAdmin() && p.new?.user_id) { presence[p.new.user_id] = p.new; renderPresence(); }
+    })
+    .on('postgres_changes', {event:'INSERT', schema:'public', table:'task_comments'}, p => {
+      if ($('#taskDlg').open && p.new.task_id === currentTaskId) loadComments(currentTaskId);
+    })
+    .subscribe();
+}
+
+/* ================= PRESENCE ================= */
+const AWAY_AFTER_MIN    = 10;   // no mouse / keyboard / scroll for this long → Away (tab open or not)
+const HEARTBEAT_SEC     = 60;   // how often each open page reports in
+const OFFLINE_AFTER_SEC = 150;  // no report for this long → Offline (closed tab, lost connection, computer asleep)
+let lastActivity = Date.now(), lastReported = null, presTimer = null, presTick = null, accessToken = null, presence = {};
+const idleMs = () => Date.now() - lastActivity;
+const myPresence = () => idleMs() >= AWAY_AFTER_MIN * 60e3 ? 'away' : 'online';
+
+['mousemove','keydown','scroll','click','touchstart'].forEach(ev => addEventListener(ev, () => {
+  lastActivity = Date.now();
+  if (me && lastReported === 'away') beat();   // back from Away → report right away
+}, {passive:true, capture:true}));
+
+async function beat(){
+  if (!me) return;
+  const s = myPresence(); lastReported = s;
+  const {error} = await sb.rpc('heartbeat', {p_status: s, p_idle_seconds: Math.round(idleMs() / 1000)});
+  if (error) console.warn('heartbeat', error);
+}
+function startPresence(){ stopPresence(); lastActivity = Date.now(); beat(); presTimer = setInterval(beat, HEARTBEAT_SEC * 1000); }
+function stopPresence(){ clearInterval(presTimer); presTimer = null; }
+async function reportOffline(){
+  if (!me) return;
+  stopPresence(); lastReported = 'offline';
+  await sb.rpc('heartbeat', {p_status:'offline', p_idle_seconds:0});
+}
+// closing the tab / browser: tell the server immediately
+addEventListener('pagehide', () => {
+  if (!me || !accessToken) return;
+  try {
+    fetch(SUPABASE_URL + '/rest/v1/rpc/heartbeat', {method:'POST', keepalive:true,
+      headers:{'Content-Type':'application/json', apikey:SUPABASE_ANON_KEY, Authorization:'Bearer ' + accessToken},
+      body: JSON.stringify({p_status:'offline', p_idle_seconds:0})}).catch(() => {});
+  } catch (e) {}
+});
+addEventListener('pageshow', e => { if (e.persisted && me) startPresence(); });
+sb.auth.onAuthStateChange((_e, s) => { accessToken = s?.access_token || null; });
+
+async function loadPresence(){
+  const {data, error} = await sb.from('presence').select('*');
+  if (error) return fail(error);
+  presence = {}; data.forEach(r => presence[r.user_id] = r);
+}
+function presenceOf(id){
+  const r = presence[id];
+  if (!r || !r.last_seen_at) return {s:'offline', r:null};
+  if (r.status === 'offline' || Date.now() - new Date(r.last_seen_at) > OFFLINE_AFTER_SEC * 1000) return {s:'offline', r};
+  return {s: r.status, r};
+}
+function timeAgo(ts){
+  const m = Math.round((Date.now() - new Date(ts)) / 60000);
+  if (m < 1) return 'just now';
+  if (m < 60) return m + ' min ago';
+  const h = Math.round(m / 60);
+  if (h < 24) return h + (h === 1 ? ' hour ago' : ' hours ago');
+  return fmtDT(ts);
+}
+function presenceText(id){
+  const {s, r} = presenceOf(id);
+  if (s === 'online') return 'Online';
+  if (s === 'away') return `Away · idle ${Math.max(1, Math.round((Date.now() - new Date(r.last_active_at)) / 60000))} min`;
+  return r?.last_seen_at ? `Offline · last seen ${timeAgo(r.last_seen_at)}` : 'Offline · never signed in';
+}
+const presenceCell = id => { const {s} = presenceOf(id); return `<span class="pres pres-${s}"><i class="pd pd-${s}"></i>${esc(presenceText(id))}</span>`; };
+function renderPresence(){
+  if (!isAdmin()) { $('#presenceBar').hidden = true; return; }
+  const others = profiles.filter(p => p.active && p.id !== me.id);
+  const here = others.map(p => ({p, ...presenceOf(p.id)})).filter(x => x.s !== 'offline')
+    .sort((a, b) => (a.s === 'online' ? 0 : 1) - (b.s === 'online' ? 0 : 1));
+  $('#presenceBar').hidden = false;
+  $('#presenceBar').innerHTML = `<span class="pb-title">On now</span>` +
+    (here.length ? here.map(x => `<button class="pchip" data-u="${x.p.id}" title="${esc(presenceText(x.p.id))} — click to see their tasks">
+        <i class="pd pd-${x.s}"></i>${esc(x.p.full_name || x.p.email)}${x.s === 'away' ? ' <small>away</small>' : ''}</button>`).join('')
+      : '<span class="pb-none">Nobody else is online</span>') +
+    `<span class="pb-off">${others.length - here.length} offline</span>`;
+  $('#presenceBar').querySelectorAll('[data-u]').forEach(b => b.onclick = () => {
+    filters.assignee = b.dataset.u; syncFilterInputs(); switchView('tasks'); renderTasks();
+  });
+  renderTeam();
+}
+
+/* ================= VIEWS ================= */
+document.querySelectorAll('#nav button').forEach(b => b.onclick = () => switchView(b.dataset.view));
+function switchView(v){
+  document.querySelectorAll('#nav button').forEach(b => b.classList.toggle('on', b.dataset.view === v));
+  $('#view-tasks').hidden = v !== 'tasks';
+  $('#view-team').hidden  = v !== 'team';
+}
+
+/* ---------- filters ---------- */
+function renderFilterOptions(){
+  const people = profiles.filter(p => p.active);
+  $('#fAssignee').innerHTML = '<option value="">Whole team</option>' +
+    people.map(p => `<option value="${p.id}">${esc(personLabel(p.id))}</option>`).join('');
+  $('#fJob').innerHTML = '<option value="">All roles</option>' +
+    jobRoles.map(r => `<option value="${r.id}">${esc(r.name)}</option>`).join('');
+  $('#fCreator').innerHTML = '<option value="">Anyone</option>' +
+    profiles.filter(p => p.role === 'admin').map(p => `<option value="${p.id}">${esc(p.full_name || p.email)}</option>`).join('');
+  $('#fPriority').innerHTML = '<option value="">Any</option>' +
+    Object.entries(PRIORITY).map(([k, v]) => `<option value="${k}">${v.t}</option>`).join('');
+  syncFilterInputs();
+}
+function syncFilterInputs(){
+  $('#fSearch').value = filters.q;
+  $('#fAssignee').value = filters.assignee; $('#fJob').value = filters.job; $('#fPriority').value = filters.priority;
+  $('#fDue').value = filters.due; $('#fCreator').value = filters.creator; $('#fSort').value = filters.sort;
+  $('#fFrom').value = filters.from; $('#fTo').value = filters.to;
+}
+const bindFilter = (sel, key, ev = 'onchange') => { $(sel)[ev] = e => { filters[key] = e.target.value; renderTasks(); }; };
+bindFilter('#fAssignee', 'assignee'); bindFilter('#fJob', 'job'); bindFilter('#fPriority', 'priority'); bindFilter('#fCreator', 'creator');
+bindFilter('#fSort', 'sort'); bindFilter('#fFrom', 'from'); bindFilter('#fTo', 'to');
+bindFilter('#fDue', 'due');
+$('#fSearch').oninput = e => { filters.q = e.target.value.trim().toLowerCase(); renderTasks(); };
+$('#fClear').onclick = () => { Object.assign(filters, EMPTY_FILTERS); syncFilterInputs(); renderTasks(); };
+
+function dueMatch(t){
+  const f = filters.due; if (!f) return true;
+  if (f === 'none') return !t.due_date;
+  if (f === 'overdue') return isOverdue(t);
+  if (!t.due_date) return false;
+  if (f === 'today') return t.due_date === todayStr();
+  if (f === 'tomorrow') return t.due_date === shiftDay(1);
+  if (f === 'week') return t.due_date >= todayStr() && t.due_date <= endOfWorkWeek();
+  if (f === 'range') return (!filters.from || t.due_date >= filters.from) && (!filters.to || t.due_date <= filters.to);
+  return true;
+}
+function activeFilterCount(){
+  return ['assignee','job','status','q','priority','due','creator'].filter(k => filters[k]).length + (filters.sort !== 'smart' ? 1 : 0);
+}
+
+/* ---------- task list ---------- */
+function renderTasks(){
+  $('#fRangeRow').hidden = filters.due !== 'range';
+  ['#fAssignee','#fJob','#fPriority','#fDue','#fCreator'].forEach(s => $(s).classList.toggle('set', !!$(s).value));
+  $('#fSort').classList.toggle('set', filters.sort !== 'smart');
+
+  const base = tasks
+    .filter(t => !filters.assignee || t.assignee_id === filters.assignee)
+    .filter(t => !filters.job || jobIdOf(t.assignee_id) === filters.job)
+    .filter(t => !filters.priority || t.priority === filters.priority)
+    .filter(t => !filters.creator || t.created_by === filters.creator)
+    .filter(dueMatch)
+    .filter(t => !filters.q || (t.title + ' ' + (t.description || '')).toLowerCase().includes(filters.q));
+
+  const count = s => s === 'overdue' ? base.filter(isOverdue).length : base.filter(t => t.status === s).length;
+  const statDefs = isAdmin()
+    ? [['submitted','Needs your review'],['in_progress','In progress'],['new','New'],['returned','Returned'],['approved','Done ✓'],['overdue','Overdue']]
+    : [['new','New'],['in_progress','Working on it'],['returned','Needs changes'],['submitted','Awaiting review'],['approved','Done ✓'],['overdue','Overdue']];
+  $('#stats').innerHTML =
+    `<button class="stat ${filters.status === '' ? 'on' : ''}" data-s=""><div class="n">${base.length}</div><div class="l">All</div></button>` +
+    statDefs.map(([s, l]) => `<button class="stat ${filters.status === s ? 'on' : ''}" data-s="${s}"><div class="n">${count(s)}</div><div class="l">${l}</div></button>`).join('');
+  document.querySelectorAll('.stat').forEach(el => el.onclick = () => { filters.status = el.dataset.s; renderTasks(); });
+
+  const order = isAdmin() ? ORDER_ADMIN : ORDER_EMP;
+  const byDue = (a, b) => (a.due_date || '9999').localeCompare(b.due_date || '9999');
+  const sorters = {
+    smart:    (a, b) => order.indexOf(a.status) - order.indexOf(b.status) || prioOf(a.priority).rank - prioOf(b.priority).rank || byDue(a, b),
+    due:      (a, b) => byDue(a, b) || prioOf(a.priority).rank - prioOf(b.priority).rank,
+    newest:   (a, b) => (b.created_at || '').localeCompare(a.created_at || ''),
+    priority: (a, b) => prioOf(a.priority).rank - prioOf(b.priority).rank || byDue(a, b),
+  };
+  const list = base
+    .filter(t => !filters.status || (filters.status === 'overdue' ? isOverdue(t) : t.status === filters.status))
+    .sort(sorters[filters.sort] || sorters.smart);
+
+  const n = activeFilterCount();
+  $('#fCount').innerHTML = `Showing <b>${list.length}</b> of ${tasks.length} tasks${n ? ` · ${n} filter${n > 1 ? 's' : ''} on` : ''}`;
+  $('#fClear').hidden = !n;
+
+  $('#taskList').innerHTML = list.length ? list.map(t => `
+    <article class="task st-${t.status}" data-id="${t.id}" tabindex="0">
+      ${t.status === 'approved' ? '<div class="check">✓</div>' : ''}
+      <div class="badges">
+        <span class="badge ${STATUS[t.status].c}">${STATUS[t.status].t}</span>
+        ${prioBadge(t.priority)}
+        ${isOverdue(t) ? '<span class="badge late">Overdue</span>' : ''}
+      </div>
+      <h3>${esc(t.title)}</h3>
+      <div class="meta">
+        ${isAdmin() ? `<span>👤 ${esc(personLabel(t.assignee_id))}</span>` : ''}
+        ${t.due_date ? `<span>📅 ${fmtDate(t.due_date)}</span>` : '<span>📅 No deadline</span>'}
+      </div>
+    </article>`).join('')
+    : `<div class="empty">${tasks.length ? 'No tasks match these filters' : (isAdmin() ? 'No tasks yet — create the first one with "+ New task"' : 'Nothing assigned to you right now 🎉')}</div>`;
+  document.querySelectorAll('.task').forEach(el => {
+    el.onclick = () => openTask(el.dataset.id);
+    el.onkeydown = e => { if (e.key === 'Enter') openTask(el.dataset.id); };
+  });
+}
+
+/* ---------- task details ---------- */
+async function openTask(id){
+  let t = tasks.find(x => x.id === id);
+  if (!t) { const r = await sb.from('tasks').select('*').eq('id', id).maybeSingle(); t = r.data; }
+  if (!t) return toast('This task no longer exists', true);
+  currentTaskId = id;
+  const st = STATUS[t.status];
+  const mine = t.assignee_id === me.id;
+
+  let actions = '';
+  if (isAdmin() && t.status === 'submitted') {
+    actions += `<div class="sec"><h4>Review</h4>
+      <textarea id="reviewNote" placeholder="Note to the employee (required when returning for changes)"></textarea>
+      <div class="actions"><button class="btn ok" id="approveBtn">✓ Approve</button><button class="btn warn" id="returnBtn">↩ Return for changes</button></div></div>`;
+  }
+  if (mine && ['new','returned','in_progress'].includes(t.status)) {
+    actions += `<div class="sec"><h4>Submit</h4>
+      <textarea id="submitNote" placeholder="Note for the admin (optional) — add your file or link under Attachments before submitting"></textarea>
+      <div class="actions">
+        ${t.status !== 'in_progress' ? '<button class="btn ghost" id="startBtn">▶ Start task</button>' : ''}
+        <button class="btn ok" id="submitBtn">✓ Done — submit for review</button>
+      </div>
+      <div class="hint" id="submitConfirm" hidden></div></div>`;
+  }
+
+  let banner = '';
+  if (t.status === 'returned' && t.review_note) banner = `<div class="note ret"><b>Review note:</b> ${esc(t.review_note)}</div>`;
+  if (t.status === 'submitted') banner = `<div class="note sub">Submitted ${fmtDT(t.submitted_at)} — waiting for admin review</div>`;
+  if (t.status === 'approved') banner = `<div class="note ok">✓ Approved ${fmtDT(t.reviewed_at)} by ${esc(nameOf(t.reviewed_by))}${t.review_note ? ' — ' + esc(t.review_note) : ''}</div>`;
+
+  $('#taskDlg').innerHTML = `
+    <div class="dlg-head"><h2>${esc(t.title)}</h2><button class="x" data-close aria-label="Close">×</button></div>
+    <div class="dlg-body">
+      <div class="badges">
+        <span class="badge ${st.c}">${st.t}</span>
+        ${prioBadge(t.priority)}
+        ${isOverdue(t) ? '<span class="badge late">Overdue</span>' : ''}
+      </div>
+      ${banner}
+      <div class="sec kv">
+        <div><b>Assignee</b>${esc(personLabel(t.assignee_id))}</div>
+        <div><b>Priority</b>${prioOf(t.priority).t} — ${prioOf(t.priority).d}</div>
+        <div><b>Deadline</b>${t.due_date ? fmtDate(t.due_date) : '—'}</div>
+        <div><b>Created</b>${fmtDT(t.created_at)} by ${esc(nameOf(t.created_by))}</div>
+        ${t.submitted_at ? `<div><b>Last submitted</b>${fmtDT(t.submitted_at)}</div>` : ''}
+      </div>
+      ${t.description ? `<div class="sec"><h4>Description</h4><div class="desc">${esc(t.description)}</div></div>` : ''}
+      ${actions}
+      <div class="sec"><h4>Attachments</h4>
+        <div id="attList">…</div>
+        ${t.status !== 'approved' || isAdmin() ? `
+        <div class="row" style="margin-top:8px"><input id="attLink" placeholder="Paste a link"><button class="btn ghost sm" id="addLinkBtn">Add link</button></div>
+        <label class="btn ghost sm" style="display:inline-block;margin-top:8px;color:var(--ink)">📎 Upload file<input type="file" id="attFile" multiple hidden></label>` : ''}
+      </div>
+      <div class="sec"><h4>Comments</h4>
+        <div id="comList">…</div>
+        <div class="row"><input id="comText" placeholder="Write a comment…"><button class="btn sm" id="comBtn">Send</button></div>
+      </div>
+      ${isAdmin() ? `<div class="actions" style="border-top:1px solid var(--line);padding-top:14px;margin-top:20px">
+        <button class="btn ghost sm" id="editBtn">✏️ Edit</button>
+        <button class="btn danger sm" id="delBtn">🗑 Delete</button>
+        <span class="hint" id="delConfirm" hidden></span></div>` : ''}
+    </div>`;
+  if (!$('#taskDlg').open) $('#taskDlg').showModal();
+
+  loadAttachments(id); loadComments(id);
+  bindTaskActions(t);
+}
+
+function bindTaskActions(t){
+  const on = (sel, fn) => { const el = $(sel); if (el) el.onclick = fn; };
+  on('#startBtn', () => rpc('start_task', {p_task: t.id}, 'Task is now in progress'));
+  on('#submitBtn', e => {
+    // two-step confirm built into the page
+    if (e.currentTarget.dataset.armed !== '1') {
+      e.currentTarget.dataset.armed = '1';
+      e.currentTarget.textContent = '✓ Confirm — send for review';
+      $('#submitConfirm').hidden = false;
+      $('#submitConfirm').textContent = 'Click again to confirm. The admins will be notified.';
+      return;
+    }
+    rpc('submit_task', {p_task: t.id, p_note: $('#submitNote').value}, 'Submitted ✓ — waiting for review');
+  });
+  on('#approveBtn', () => rpc('review_task', {p_task: t.id, p_approve: true, p_note: $('#reviewNote').value}, 'Approved ✓'));
+  on('#returnBtn', () => {
+    const note = $('#reviewNote').value.trim();
+    if (!note) { $('#reviewNote').focus(); return toast('Write a note explaining what needs to change', true); }
+    rpc('review_task', {p_task: t.id, p_approve: false, p_note: note}, 'Returned to the employee');
+  });
+  on('#addLinkBtn', async () => {
+    let url = $('#attLink').value.trim(); if (!url) return;
+    if (!/^https?:\/\//i.test(url)) url = 'https://' + url;
+    const {error} = await sb.from('task_attachments').insert({task_id: t.id, kind:'link', ref: url, name: url});
+    if (error) return fail(error);
+    $('#attLink').value = ''; loadAttachments(t.id);
+  });
+  const f = $('#attFile');
+  if (f) f.onchange = async () => { await uploadFiles(t.id, [...f.files]); f.value = ''; loadAttachments(t.id); };
+  on('#comBtn', sendComment);
+  const ct = $('#comText'); if (ct) ct.onkeydown = e => { if (e.key === 'Enter') sendComment(); };
+  on('#editBtn', () => openTaskForm(t));
+  on('#delBtn', async e => {
+    if (e.currentTarget.dataset.armed !== '1') {
+      e.currentTarget.dataset.armed = '1';
+      e.currentTarget.textContent = '🗑 Confirm delete';
+      $('#delConfirm').hidden = false;
+      $('#delConfirm').textContent = 'Deletes the task with all its attachments and comments.';
+      return;
+    }
+    const {data: files} = await sb.from('task_attachments').select('ref').eq('task_id', t.id).eq('kind', 'file');
+    if (files?.length) await sb.storage.from(BUCKET).remove(files.map(x => x.ref));
+    const {error} = await sb.from('tasks').delete().eq('id', t.id);
+    if (error) return fail(error);
+    $('#taskDlg').close(); toast('Task deleted'); loadTasks();
+  });
+}
+
+async function rpc(fn, args, okMsg){
+  const {error} = await sb.rpc(fn, args);
+  if (error) return fail(error);
+  toast(okMsg);
+  await loadTasks();
+  openTask(args.p_task);
+}
+
+async function loadAttachments(taskId){
+  const {data, error} = await sb.from('task_attachments').select('*').eq('task_id', taskId).order('created_at');
+  if (error) return fail(error);
+  const el = $('#attList'); if (!el || currentTaskId !== taskId) return;
+  el.innerHTML = data.length ? data.map(a => `
+    <div class="att">
+      ${a.kind === 'link'
+        ? `🔗 <a href="${esc(a.ref)}" target="_blank" rel="noopener">${esc(a.name || a.ref)}</a>`
+        : `📄 <button class="lnk" data-path="${esc(a.ref)}">${esc(a.name || 'File')}</button>`}
+      <small>${esc(nameOf(a.uploaded_by))}</small>
+      ${(isAdmin() || a.uploaded_by === me.id) ? `<button class="x" style="font-size:18px" title="Remove" data-del="${a.id}" data-kind="${a.kind}" data-ref="${esc(a.ref)}">×</button>` : ''}
+    </div>`).join('') : '<div style="color:var(--muted);font-size:13px">No attachments</div>';
+  el.querySelectorAll('[data-path]').forEach(b => b.onclick = async () => {
+    const {data: s, error} = await sb.storage.from(BUCKET).createSignedUrl(b.dataset.path, 60 * 10);
+    if (error) return fail(error);
+    window.open(s.signedUrl, '_blank');
+  });
+  el.querySelectorAll('[data-del]').forEach(b => b.onclick = async () => {
+    const {error} = await sb.from('task_attachments').delete().eq('id', b.dataset.del);
+    if (error) return fail(error);
+    if (b.dataset.kind === 'file' && isAdmin()) await sb.storage.from(BUCKET).remove([b.dataset.ref]);
+    toast('Attachment removed');
+    loadAttachments(taskId);
+  });
+}
+
+async function uploadFiles(taskId, files){
+  for (const file of files) {
+    if (file.size > 50 * 1024 * 1024) { toast(`${file.name} is larger than 50 MB`, true); continue; }
+    const ext = (file.name.split('.').pop() || 'bin').replace(/[^a-z0-9]/gi, '').slice(0, 8);
+    const path = `${taskId}/${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext}`;
+    toast('Uploading ' + file.name);
+    const up = await sb.storage.from(BUCKET).upload(path, file, {contentType: file.type || undefined});
+    if (up.error) { fail(up.error); continue; }
+    const {error} = await sb.from('task_attachments').insert({task_id: taskId, kind:'file', ref: path, name: file.name});
+    if (error) fail(error);
+  }
+}
+
+async function loadComments(taskId){
+  const {data, error} = await sb.from('task_comments').select('*').eq('task_id', taskId).order('created_at');
+  if (error) return fail(error);
+  const el = $('#comList'); if (!el || currentTaskId !== taskId) return;
+  el.innerHTML = data.length ? data.map(c => `
+    <div class="comment ${c.author_id === me.id ? 'mine' : ''}">
+      <div class="who">${esc(nameOf(c.author_id))} · ${fmtDT(c.created_at)}</div>
+      <p>${esc(c.body)}</p>
+    </div>`).join('') : '<div style="color:var(--muted);font-size:13px;margin-bottom:8px">No comments yet</div>';
+}
+
+async function sendComment(){
+  const txt = $('#comText').value.trim(); if (!txt) return;
+  $('#comBtn').disabled = true;
+  const {error} = await sb.from('task_comments').insert({task_id: currentTaskId, body: txt});
+  $('#comBtn').disabled = false;
+  if (error) return fail(error);
+  $('#comText').value = ''; loadComments(currentTaskId);
+}
+
+/* ---------- create / edit task ---------- */
+$('#newTaskBtn').onclick = () => openTaskForm(null);
+function openTaskForm(t){
+  const opts = profiles.filter(p => p.active).map(p =>
+    `<option value="${p.id}" ${t?.assignee_id === p.id ? 'selected' : ''}>${esc(personLabel(p.id))}${p.role === 'admin' ? ' (admin)' : ''}</option>`).join('');
+  $('#formDlg').innerHTML = `
+    <form method="dialog" id="taskForm">
+      <div class="dlg-head"><h2>${t ? 'Edit task' : 'New task'}</h2><button type="button" class="x" data-close aria-label="Close">×</button></div>
+      <div class="dlg-body">
+        <label for="tTitle">Title *</label><input id="tTitle" required value="${esc(t?.title)}">
+        <label for="tDesc">Description</label><textarea id="tDesc">${esc(t?.description)}</textarea>
+        <div class="grid4" style="align-items:start">
+          <div><label for="tAssignee">Assignee *</label><select id="tAssignee" required><option value="">Choose…</option>${opts}</select></div>
+          <div><label for="tPriority">Priority</label><select id="tPriority">
+            ${Object.entries(PRIORITY).map(([k, v]) => `<option value="${k}" ${(t?.priority || 'normal') === k ? 'selected' : ''}>${v.t}</option>`).join('')}
+          </select><div class="hint" id="tPrioHint"></div></div>
+          <div><label for="tDue">Deadline</label><input type="date" id="tDue" value="${t?.due_date || ''}"><div class="hint" id="tDueHint"></div></div>
+        </div>
+        ${t ? '' : `
+        <label for="tLinks">Links (one per line)</label><textarea id="tLinks" style="min-height:60px"></textarea>
+        <label for="tFiles">Files</label><input type="file" id="tFiles" multiple>`}
+        <div class="actions"><button class="btn" id="tSave">${t ? 'Save changes' : 'Create task'}</button></div>
+      </div>
+    </form>`;
+  $('#formDlg').showModal();
+  const syncPrio = auto => {
+    const p = prioOf($('#tPriority').value);
+    $('#tPrioHint').textContent = p.d;
+    if (p.days === null) {
+      $('#tDue').required = true;
+      if (auto) $('#tDue').value = '';
+      $('#tDueHint').textContent = 'Pick the due date yourself';
+    } else {
+      $('#tDue').required = false;
+      if (auto) $('#tDue').value = addWorkingDays(p.days);
+      $('#tDueHint').textContent = 'Set automatically (Fridays skipped) — you can change it';
+    }
+  };
+  $('#tPriority').onchange = () => syncPrio(true);
+  syncPrio(!t);
+  $('#taskForm').onsubmit = async e => {
+    e.preventDefault();
+    const payload = {
+      title: $('#tTitle').value.trim(),
+      description: $('#tDesc').value.trim() || null,
+      assignee_id: $('#tAssignee').value,
+      priority: $('#tPriority').value,
+      due_date: $('#tDue').value || null,
+    };
+    if (!payload.title || !payload.assignee_id) return toast('Title and assignee are required', true);
+    $('#tSave').disabled = true;
+    if (t) {
+      const {error} = await sb.from('tasks').update({...payload, updated_at: new Date().toISOString()}).eq('id', t.id);
+      $('#tSave').disabled = false;
+      if (error) return fail(error);
+      $('#formDlg').close(); toast('Task updated'); await loadTasks(); openTask(t.id);
+    } else {
+      const {data, error} = await sb.from('tasks').insert(payload).select().single();
+      if (error) { $('#tSave').disabled = false; return fail(error); }
+      const links = $('#tLinks').value.split('\n').map(s => s.trim()).filter(Boolean)
+        .map(u => /^https?:\/\//i.test(u) ? u : 'https://' + u);
+      if (links.length) await sb.from('task_attachments').insert(links.map(u => ({task_id: data.id, kind:'link', ref: u, name: u})));
+      const files = [...$('#tFiles').files];
+      if (files.length) await uploadFiles(data.id, files);
+      $('#formDlg').close(); toast('Task created and sent to ' + nameOf(payload.assignee_id)); loadTasks();
+    }
+  };
+}
+
+/* ---------- team (admin) ---------- */
+function renderTeam(){
+  const rows = profiles.map(p => {
+    const mine = tasks.filter(t => t.assignee_id === p.id);
+    const open = mine.filter(t => t.status !== 'approved').length;
+    const done = mine.filter(t => t.status === 'approved').length;
+    const late = mine.filter(isOverdue).length;
+    const self = p.id === me.id;
+    return `<tr>
+      <td><b>${esc(p.full_name || '—')}</b><div class="sub-email">${esc(p.email)}</div></td>
+      <td>${p.active ? presenceCell(p.id) : '<span class="pres pres-offline">—</span>'}</td>
+      <td><select class="tsel" data-job="${p.id}" aria-label="Role for ${esc(p.full_name || p.email)}">
+        <option value="">— No role —</option>
+        ${jobRoles.map(r => `<option value="${r.id}" ${p.job_role_id === r.id ? 'selected' : ''}>${esc(r.name)}</option>`).join('')}
+      </select></td>
+      <td><span class="badge ${p.role === 'admin' ? 's-sub' : 's-new'}">${p.role === 'admin' ? 'Admin' : 'Employee'}</span></td>
+      <td><span class="badge ${p.active ? 's-ok' : 'urgent'}">${p.active ? 'Active' : 'Disabled'}</span></td>
+      <td style="font-variant-numeric:tabular-nums">${open} open · ${done} done${late ? ` · <span style="color:var(--late);font-weight:700">${late} overdue</span>` : ''}</td>
+      <td style="white-space:nowrap">${self ? '<small style="color:var(--muted)">You</small>' : `
+        <button class="btn ghost sm" data-act="active" data-id="${p.id}">${p.active ? 'Disable' : 'Activate'}</button>
+        <button class="btn ghost sm" data-act="role" data-id="${p.id}">${p.role === 'admin' ? 'Make employee' : 'Make admin'}</button>`}</td>
+    </tr>`;
+  }).join('');
+  $('#teamTable').innerHTML = `<tr><th>Name</th><th>Presence</th><th>Role</th><th>Permission</th><th>Status</th><th>Tasks</th><th></th></tr>${rows}`;
+  $('#teamTable').querySelectorAll('[data-act]').forEach(b => b.onclick = async () => {
+    const p = profiles.find(x => x.id === b.dataset.id);
+    const upd = b.dataset.act === 'active' ? {active: !p.active} : {role: p.role === 'admin' ? 'employee' : 'admin'};
+    const {error} = await sb.from('profiles').update(upd).eq('id', p.id);
+    if (error) return fail(error);
+    toast('Updated'); loadProfiles();
+  });
+  $('#teamTable').querySelectorAll('[data-job]').forEach(s => s.onchange = async () => {
+    const {error} = await sb.from('profiles').update({job_role_id: s.value || null}).eq('id', s.dataset.job);
+    if (error) return fail(error);
+    toast('Role updated'); loadProfiles();
+  });
+}
+
+function renderRoles(){
+  $('#uJob').innerHTML = '<option value="">— No role —</option>' +
+    jobRoles.map(r => `<option value="${r.id}">${esc(r.name)}</option>`).join('');
+  $('#rolesList').innerHTML = jobRoles.length ? jobRoles.map(r => {
+    const n = profiles.filter(p => p.job_role_id === r.id).length;
+    return `<span class="role-chip">${esc(r.name)} <small>${n}</small>
+      <button data-rdel="${r.id}" ${n ? 'disabled' : ''} title="${n ? 'Someone has this role — change their role first' : 'Remove role'}" aria-label="Remove ${esc(r.name)}">×</button></span>`;
+  }).join('') : '<span class="hint">No roles yet — add the first one</span>';
+  $('#rolesList').querySelectorAll('[data-rdel]').forEach(b => b.onclick = async () => {
+    const {error} = await sb.from('job_roles').delete().eq('id', b.dataset.rdel);
+    if (error) return fail(error);
+    toast('Role removed'); loadProfiles();
+  });
+}
+$('#addRoleForm').onsubmit = async e => {
+  e.preventDefault();
+  const name = $('#newRole').value.trim(); if (!name) return;
+  if (jobRoles.some(r => r.name.toLowerCase() === name.toLowerCase())) return toast('This role already exists', true);
+  const {error} = await sb.from('job_roles').insert({name});
+  if (error) return fail(error);
+  $('#newRole').value = ''; toast(`Role "${name}" added`); loadProfiles();
+};
+
+$('#addUserForm').onsubmit = async e => {
+  e.preventDefault();
+  const name = $('#uName').value.trim(), email = $('#uEmail').value.trim(), pass = $('#uPass').value, role = $('#uRole').value;
+  $('#uBtn').disabled = true;
+  // a separate client so the admin stays signed in while creating the new account
+  const tmp = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY,
+    {auth: {persistSession:false, autoRefreshToken:false, detectSessionInUrl:false, storageKey:'tafaal-signup-tmp'}});
+  const {data, error} = await tmp.auth.signUp({email, password: pass, options: {data: {full_name: name}}});
+  if (error || !data.user) { $('#uBtn').disabled = false; return toast(error?.message?.includes('registered') ? 'This email is already registered' : (error?.message || 'Could not create the account'), true); }
+  const {error: e2} = await sb.from('profiles').update({full_name: name, role, active: true, job_role_id: $('#uJob').value || null}).eq('id', data.user.id);
+  $('#uBtn').disabled = false;
+  if (e2) return fail(e2);
+  e.target.reset();
+  toast(`${name} added — send them their email and password`);
+  loadProfiles();
+};
+
+/* ---------- change password ---------- */
+$('#pwBtn').onclick = () => {
+  $('#formDlg').innerHTML = `
+    <form id="pwForm">
+      <div class="dlg-head"><h2>Change password</h2><button type="button" class="x" data-close aria-label="Close">×</button></div>
+      <div class="dlg-body">
+        <label for="pw1">New password</label><input type="password" id="pw1" minlength="6" required autocomplete="new-password">
+        <label for="pw2">Repeat new password</label><input type="password" id="pw2" minlength="6" required autocomplete="new-password">
+        <div class="actions"><button class="btn">Save</button></div>
+      </div>
+    </form>`;
+  $('#formDlg').showModal();
+  $('#pwForm').onsubmit = async e => {
+    e.preventDefault();
+    if ($('#pw1').value !== $('#pw2').value) return toast("The passwords don't match", true);
+    const {error} = await sb.auth.updateUser({password: $('#pw1').value});
+    if (error) return fail(error);
+    $('#formDlg').close(); toast('Password changed ✓');
+  };
+};
+
+/* ---------- notifications ---------- */
+function renderBell(){
+  const n = notifs.filter(x => !x.read).length;
+  $('#bellCount').hidden = !n; $('#bellCount').textContent = n > 99 ? '99+' : n;
+  const p = $('#notifPanel');
+  p.innerHTML = `<div class="nh">Notifications ${n ? `<button class="btn ghost sm" id="readAll">Mark all read</button>` : ''}</div>` +
+    (notifs.length ? notifs.map(x => `<div class="notif ${x.read ? '' : 'unread'}" data-id="${x.id}" data-task="${x.task_id || ''}">
+      ${esc(x.message)}<small>${fmtDT(x.created_at)}</small></div>`).join('')
+    : '<div class="notif" style="color:var(--muted);cursor:default">No notifications</div>');
+  const ra = $('#readAll');
+  if (ra) ra.onclick = async ev => {
+    ev.stopPropagation();
+    await sb.from('notifications').update({read: true}).eq('user_id', me.id).eq('read', false);
+    notifs.forEach(x => x.read = true); renderBell();
+  };
+  p.querySelectorAll('.notif[data-id]').forEach(el => el.onclick = async () => {
+    const x = notifs.find(y => y.id === el.dataset.id);
+    if (x && !x.read) { x.read = true; sb.from('notifications').update({read: true}).eq('id', x.id).then(); renderBell(); }
+    p.hidden = true;
+    if (el.dataset.task) openTask(el.dataset.task);
+  });
+}
+$('#bellBtn').onclick = e => { e.stopPropagation(); $('#notifPanel').hidden = !$('#notifPanel').hidden; };
+document.addEventListener('click', e => { if (!$('#notifPanel').contains(e.target)) $('#notifPanel').hidden = true; });
+
+/* ---------- dialogs ---------- */
+document.addEventListener('click', e => { if (e.target.matches('[data-close]')) e.target.closest('dialog').close(); });
+$('#taskDlg').addEventListener('close', () => { currentTaskId = null; });
+
+/* ---------- boot ---------- */
+(async () => {
+  if (SUPABASE_URL.includes('YOUR-PROJECT')) { showLogin('Add SUPABASE_URL and SUPABASE_ANON_KEY at the top of the code'); return; }
+  const {data: {session}} = await sb.auth.getSession();
+  if (session) await enter(session.user); else showLogin();
+})();
+</script>
+</body>
+</html>
